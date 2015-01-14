@@ -56,7 +56,7 @@ class Dict(dict):
 	def __setattr__(self, key , value):
 		self[key] = value
 
-class _LazyConnection(object):
+class _LasyConnection(object):
 
 	def __init__(self):
 		self.connection = None # the connection to MySql using to return 
@@ -87,7 +87,7 @@ class _DbCtx(threading.local):
 	'''
 	def __init__(self):
 		self.connection = None # connection to MySql 
-		self.transaction = 0 # transaction for commit
+		self.transactions = 0 # transactions for commit
 
 	def is_init(self):
 		return not self.connection is None
@@ -95,7 +95,7 @@ class _DbCtx(threading.local):
 	def init(self):
 		logging.info('open lazy connection')
 		self.connection = _LasyConnection()
-		self.transaction = 0 # I don't understand
+		self.transactions = 0 # I don't understand
 
 	def cleanup(self):
 		self.connection.cleanup() # using MySql function to cleanup
@@ -131,14 +131,72 @@ def create_engine(user, password, database, host='127.0.0.1', port=3306, **kw): 
 	if engine is not None:
 		raise DBError('Engine is already initialized.')
 	params = dict(user=user, password= password, database= database, host = host ,port = port)
-	defaults = dict(use_unicode=True, charset='utf-8',collation = 'utf_general_ci',autocommit=False)
+	defaults = dict(use_unicode=True, charset=u'utf8',collation = 'utf8_general_ci',autocommit=False)
 	for k,v in defaults.iteritems():
 		params[k] = kw.pop(k,v)
 	params.update(kw)
 	params['buffered'] = True
-	engine = _Engine(lambda:mysql.connector.connect(**parms))
+	engine = _Engine(lambda:mysql.connector.connect(**params))
 	# test connection...
 	logging.info('Init mysql engine <%s> ok.' % hex(id(engine)))
+
+class _ConnectionCtx(object):
+	'''
+	_ConnectionCtx object that can open and close connection context. _ConnectionCtx object can be nested and
+	only the most outer connection has effect.
+
+	with connection():
+		pass 
+		with connection():
+			pass
+	'''
+	def __enter__(self):
+		global _db_ctx
+		self.should_cleanup = False
+		if not _db_ctx.is_init():
+			_db_ctx.init()
+			self.should_cleanup = True
+		return self
+
+	def __exit__(self , exctype, excvalue, traceback):
+		global _db_ctx
+		if self.should_cleanup:
+			_db_ctx.cleanup() # mySql cleanup
+
+def with_connection(func):
+	'''
+	Decorator for reuse connection.
+
+	@with_connection
+	def foo(*args, **kw):
+		f1()
+		f2()
+		f3()
+	'''
+	@functools.wraps(func)
+	def _wrapper(*args, **kw):
+		with _ConnectionCtx():
+			return func(*args, **kw)
+	return _wrapper
+
+@with_connection
+def _update(sql, *args):
+	global _db_ctx
+	cursor = None
+	sql = sql.replace('?', '%s')
+	logging.info('SQL: %s, ARGS: %s' % (sql,args))
+	try:
+		cursor = _db_ctx.connection.cursor()
+		cursor.execute(sql, args)
+		r = cursor.rowcount
+		if _db_ctx.transactions ==0: # question is , what situation transactions is not Zero
+			# no transaction enviroment:
+			logging.info('auto commit')
+			_db_ctx.connection.commit()
+		return r
+	finally:
+		if cursor:
+			cursor.close()
 
 def insert(table, **kw):
 	pass
@@ -150,9 +208,22 @@ def update(sql , *args):
 	>>> u1 = dict(id=1000, name='David', email='kringpin_lin@163.com', passwd='Linux818',last_modified=time.time())
 	>>> insert('user', **u1)
 	1
-
+	>>> u2 = select_one('select * from user where id=?', 1000)
+	>>> u2.email
+	u'kringpin_lin@163.com'
+	>>> u2.passwd
+	u'Linux818'
+	>>> update('update user set email=?, passwd=? where id=?', 'kringpin_lin@163.com', 'Linux818', 1000)
+	1
+	>>> u3 = select_one('select * from user where id=?', 1000)
+	>>> u3.email
+	u'kringpin_lin@163.com'
+	>>> u3.passwd
+	u'Linux818'
+	>>> update('update user set passwd=? where id=?', '***', '123\' or id=\'456')
+	0
 	'''
-	pass
+	return _update(sql, *args)
 
 if __name__=='__main__':
 	logging.basicConfig(level=logging.DEBUG)
