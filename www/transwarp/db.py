@@ -10,7 +10,6 @@ Database operation module. Learn from project of Michael Liao
 import time, uuid, functools, threading, logging
 
 # Dict object:
-
 class Dict(dict):
 	'''
 	Simple dict but support access as x.y style
@@ -55,6 +54,13 @@ class Dict(dict):
 
 	def __setattr__(self, key , value):
 		self[key] = value
+
+class DBError(Exception):
+	pass
+
+class MultiColumnsError(DBError): # extends from DBError means it is an error from DB
+	pass
+
 
 class _LasyConnection(object):
 
@@ -184,7 +190,7 @@ def _update(sql, *args):
 	global _db_ctx
 	cursor = None
 	sql = sql.replace('?', '%s') # replace ? with %s in sql
-	logging.info('SQL: %s, \n ARGS: %s' % (sql,args)) # you can see what sql right now in here
+	logging.info('SQL: %s, ARGS: %s' % (sql,args)) # you can see what sql right now in here
 	try:
 		cursor = _db_ctx.connection.cursor() # what it have done is to detach "SQL Injection Attack"
 		cursor.execute(sql, args) # execute it 
@@ -214,7 +220,7 @@ def _select(sql, first, *args):
 			if not values:
 				return None
 			return Dict(names, values)
-		return [Dict(names,x) for x in cursor.fetchall()]  # means fetch all 
+		return [Dict(names,x) for x in cursor.fetchall()]  # # a list builded of lots of Dict instance 
 	finally:
 		if cursor:
 			cursor.close()
@@ -236,9 +242,37 @@ def select_one(sql , *args):
 	>>> u.name
 	u'David'
 	'''
-
 	return _select(sql, True, *args)
 
+@with_connection
+def select_int(sql, *args):
+	'''
+	Execute select SQL and expected one int and only one int result
+
+	>>> n = update('delete from user')
+	>>> u1 = dict(id=10086, name='Ada', email='kringpin323@gmail.com', passwd = 'Linux818', last_modified = time.time())
+	>>> u2 = dict(id=10087, name='Adam', email='adam@test.org', passwd = 'Linux818', last_modified=time.time())
+	>>> insert('user', **u1)
+	1
+	>>> insert('user', **u2)
+	1
+	>>> select_int('select name from user where email=?','adam@test.org')
+	u'Adam'
+	>>> select_int('select id from user where email=?','adam@test.org')
+	10087
+	>>> select_int('select count(*) from user')
+	2
+	>>> select_int('select count(*) from user where email=?','kringpin323@gmail.com')
+	1
+    >>> select_int('select id , name from user where email=?','adam@test.org')
+    Traceback (most recent call last):
+    	...
+    MultiColumnsError: Expect only one column.
+	'''
+	d = _select(sql, True, *args) # a list builded of lots of Dict instances  or an Dict instance 
+	if len(d)!=1: # so easy to define an Error , if it is an Dict instance , len(d)==(int) # help(len)  Return the number of items of a sequence or mapping
+		raise MultiColumnsError('Expect only one column.')
+	return d.values()[0]
 
 @with_connection
 def select(sql, *args):
