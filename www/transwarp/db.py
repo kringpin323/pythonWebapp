@@ -198,6 +198,73 @@ def _update(sql, *args):
 		if cursor:
 			cursor.close()
 
+def _select(sql, first, *args):
+	'execute select SQL and return unique result or list results.'
+	global _db_ctx
+	cursor = None
+	sql = sql.replace('?', '%s') # protect from SQL Injection Attack
+	logging.info('SQL: %s, ARGS: %s' % (sql, args)) 
+	try:
+		cursor = _db_ctx.connection.cursor()
+		cursor.execute(sql, args) # sentences execute can dull with all kind of sql 
+		if cursor.description:
+			names = [x[0] for x in cursor.description]
+		if first: # means : return First Find or not
+			values = cursor.fetchone()  # means fetch one 
+			if not values:
+				return None
+			return Dict(names, values)
+		return [Dict(names,x) for x in cursor.fetchall()]  # means fetch all 
+	finally:
+		if cursor:
+			cursor.close()
+
+@with_connection
+def select_one(sql , *args):
+	'''
+	Execute select SQL and expected one result.
+	if no , return None
+	If more than one, the first one returned.
+
+	>>> u1 = dict(id=100 , name='David', email='kringpin_lin@163.com' , passwd='Linux818' , last_modified=time.time())
+	>>> u2 = dict(id=101 , name='John', email='1325742149@qq.com' , passwd='Linux818' , last_modified=time.time())
+	>>> insert('user', **u1)
+	1
+	>>> insert('user', **u2)
+	1
+	>>> u = select_one('select * from user where id=?', 100)
+	>>> u.name
+	u'David'
+	'''
+
+	return _select(sql, True, *args)
+
+
+@with_connection
+def select(sql, *args):
+	'''
+	Execute select SQL and return list or empty list if no result.
+
+	>>> u1 = dict(id=200, name='Wall.E', email='wall.e@test.org', passwd='back-to-earth', last_modified=time.time())
+	>>> u2 = dict(id=201, name='Eva', email='eva@test.org', passwd='back-to-earth', last_modified=time.time())
+	>>> insert('user', **u1)
+	1
+	>>> insert('user', **u2)
+	1
+	>>> L = select('select * from user where id=?' ,9090909)
+	>>> L
+	[]
+	>>> L = select('select * from user where id=?', 200)
+	>>> L[0].email
+	u'wall.e@test.org'
+	>>> L = select('select * from user where passwd=? order by id desc', 'back-to-earth')
+	>>> L[0].name
+	u'Eva'
+	>>> L[1].name
+	u'Wall.E'
+	'''
+	return _select(sql, False, *args)
+
 def insert(table, **kw):
 	'''
 	Execute insert SQL.
