@@ -183,12 +183,12 @@ def with_connection(func):
 def _update(sql, *args):
 	global _db_ctx
 	cursor = None
-	sql = sql.replace('?', '%s')
-	logging.info('SQL: %s, ARGS: %s' % (sql,args))
+	sql = sql.replace('?', '%s') # replace ? with %s in sql
+	logging.info('SQL: %s, \n ARGS: %s' % (sql,args)) # you can see what sql right now in here
 	try:
-		cursor = _db_ctx.connection.cursor()
-		cursor.execute(sql, args)
-		r = cursor.rowcount
+		cursor = _db_ctx.connection.cursor() # what it have done is to detach "SQL Injection Attack"
+		cursor.execute(sql, args) # execute it 
+		r = cursor.rowcount # we use cursor to execute and get answer
 		if _db_ctx.transactions ==0: # question is , what situation transactions is not Zero
 			# no transaction enviroment:
 			logging.info('auto commit')
@@ -199,27 +199,22 @@ def _update(sql, *args):
 			cursor.close()
 
 def insert(table, **kw):
-	pass
+	'''
+	Execute insert SQL.
+
+	>>> u1 = dict(id=2000, name='Bob', email='bob@test.org', passwd='Linux818',last_modified=time.time())
+	>>> insert('user',**u1)
+	1
+	'''
+	cols, args = zip(*kw.iteritems())
+	sql = 'insert into `%s` (%s) values (%s)' % (table, ','.join(['`%s`' % col for col in cols]), ','.join(['?' for i in range(len(cols))])) # bulid sql with key not values
+	return _update(sql, *args)
 
 def update(sql , *args):
 	r'''
 	Execute update SQL.
 
 	>>> u1 = dict(id=1000, name='David', email='kringpin_lin@163.com', passwd='Linux818',last_modified=time.time())
-	>>> insert('user', **u1)
-	1
-	>>> u2 = select_one('select * from user where id=?', 1000)
-	>>> u2.email
-	u'kringpin_lin@163.com'
-	>>> u2.passwd
-	u'Linux818'
-	>>> update('update user set email=?, passwd=? where id=?', 'kringpin_lin@163.com', 'Linux818', 1000)
-	1
-	>>> u3 = select_one('select * from user where id=?', 1000)
-	>>> u3.email
-	u'kringpin_lin@163.com'
-	>>> u3.passwd
-	u'Linux818'
 	>>> update('update user set passwd=? where id=?', '***', '123\' or id=\'456')
 	0
 	'''
@@ -227,12 +222,11 @@ def update(sql , *args):
 
 if __name__=='__main__':
 	logging.basicConfig(level=logging.DEBUG)
-	create_engine('DavidPythonWebapp','Linux818','DavidPersonalWebsite')
+	create_engine('root','Linux818','test')
 
 	update('drop table if exists user')
-	update('create table user (id int primay key, name text, email text, passwd text, last_modified real')
+	update('create table user (id int primary key, name text, email text, passwd text, last_modified real)')
 
 	import doctest
 	doctest.testmod()
 
-	
