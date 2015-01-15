@@ -55,6 +55,17 @@ class Dict(dict):
 	def __setattr__(self, key , value):
 		self[key] = value
 
+def next_id(t=None):
+	'''
+	Return next id as 50-char string.
+
+	Args:
+		t: unix timestamp, default to None and using time.time().
+	'''
+	if t is None:
+		t = time.time()
+	return '%015d%s000' % (int(t * 1000), uuid.uuid4().hex)
+
 class DBError(Exception):
 	pass
 
@@ -266,14 +277,14 @@ def transaction(): # why not make it directed ?
 	with transaction():
 		pass
 
-    >>> def update_profile(id, name, rollback):
-    ...     u = dict(id=id, name=name, email='%s@test.org' % name, passwd=name, last_modified=time.time())
-    ...     insert('user', **u)
-    ...     r = update('update user set passwd=? where id=?', name.upper(), id)
-    ...     if rollback:
-    ...         raise StandardError('will cause rollback...')
-    >>> with transaction():
-    ...     update_profile(900301, 'Python', False)
+	>>> def update_profile(id, name, rollback):
+	...     u = dict(id=id, name=name, email='%s@test.org' % name, passwd=name, last_modified=time.time())
+	...     insert('user', **u)
+	...     r = update('update user set passwd=? where id=?', name.upper(), id)
+	...     if rollback:
+	...         raise StandardError('will cause rollback...')
+	>>> with transaction():
+	...     update_profile(900301, 'Python', False)
 	'''
 	return _TransactionCtx()
 
@@ -350,10 +361,10 @@ def select_int(sql, *args):
 	2
 	>>> select_int('select count(*) from user where email=?','kringpin323@gmail.com')
 	1
-    >>> select_int('select id , name from user where email=?','adam@test.org')
-    Traceback (most recent call last):
-    	...
-    MultiColumnsError: Expect only one column.
+	>>> select_int('select id , name from user where email=?','adam@test.org')
+	Traceback (most recent call last):
+		...
+	MultiColumnsError: Expect only one column.
 	'''
 	d = _select(sql, True, *args) # a list builded of lots of Dict instances  or an Dict instance 
 	if len(d)!=1: # so easy to define an Error , if it is an Dict instance , len(d)==(int) # help(len)  Return the number of items of a sequence or mapping

@@ -23,7 +23,7 @@ class Field(object): # Database entity instance Field
 		self.updatable = kw.get('updatable', True)
 		self.insertable = kw.get('insertable', True) # Field insertable
 		self.ddl = kw.get('ddl','')
-		self.order = Field._count    # _count for order
+		self._order = Field._count    # _count for order
 		Field._count = Field._count + 1
 
 	@property
@@ -64,7 +64,7 @@ class BooleanField(Field):
 			kw['default'] = False
 		if not 'ddl' in kw:
 			kw['ddl'] = 'bool'
-		super(BooleanField, self).__init(**kw)
+		super(BooleanField, self).__init__(**kw)
 
 class FloatField(Field):
 
@@ -73,7 +73,7 @@ class FloatField(Field):
 			kw['default'] = 0.0
 		if not 'ddl' in kw:
 			kw['ddl'] = 'real'
-		super(BooleanField, self).__init(**kw)
+		super(FloatField, self).__init__(**kw)
 
 class TextField(Field):
 
@@ -82,7 +82,7 @@ class TextField(Field):
 			kw['default'] = ''
 		if not 'ddl' in kw:
 			kw['ddl'] = 'text'
-		super(BooleanField, self).__init(**kw)
+		super(TextField, self).__init__(**kw)
 
 class BlobField(Field):
 
@@ -101,7 +101,19 @@ class VersionField(Field):
 _triggers = frozenset(['pre_insert','pre_update','pre_delete'])  # three trigger
 
 def _gen_sql(table_name, mappings):
-	pass
+	pk = None
+	sql = ['-- generating SQL for %s:' % table_name, 'create table `%s` (' % table_name]
+	for f in sorted(mappings.values(), lambda x, y: cmp(x._order, y._order)):
+		if not hasattr(f, 'ddl'):
+			raise StandardError('no ddl in field "%s".' % n)
+		ddl = f.ddl
+		nullable = f.nullable
+		if f.primary_key:
+			pk = f.name
+		sql.append(nullable and '  `%s` %s,' % (f.name, ddl) or '  `%s` %s not null,' % (f.name, ddl))
+	sql.append('  primary key(`%s`)' % pk)
+	sql.append(');')
+	return '\n'.join(sql)
 
 class ModelMetaclass(type):
 	'''
@@ -175,6 +187,52 @@ class ModelMetaclass(type):
 		return type.__new__(cls, name, bases, attrs)		
 
 class Model(dict):
+	'''
+	Base class for ORM.
+
+	>>> class User(Model):
+	...     id = IntegerField(primary_key=True)
+	...     name = StringField()
+	...     email = StringField(updatable=False)
+	...     passwd = StringField(default=lambda: '******')
+	...     last_modified = FloatField()
+	...     def pre_insert(self):
+	...         self.last_modified = time.time()
+	>>> u = User(id=10190, name='Michael', email='orm@db.org')
+	>>> r = u.insert()
+	>>> u.email
+	'orm@db.org'
+	>>> u.passwd
+	'******'
+	>>> u.last_modified > (time.time() - 2)
+	True
+	>>> f = User.get(10190)
+	>>> f.name
+	u'Michael'
+	>>> f.email
+	u'orm@db.org'
+	>>> f.email = 'changed@db.org'
+	>>> r = f.update() # change email but email is non-updatable!
+	>>> len(User.find_all())
+	1
+	>>> g = User.get(10190)
+	>>> g.email
+	u'orm@db.org'
+	>>> r = g.delete()
+	>>> len(db.select('select * from user where id=10190'))
+	0
+	>>> import json
+	>>> print User().__sql__()
+	-- generating SQL for user:
+	create table `user` (
+	  `id` bigint not null,
+	  `name` varchar(255) not null,
+	  `email` varchar(255) not null,
+	  `passwd` varchar(255) not null,
+	  `last_modified` real not null,
+	  primary key(`id`)
+	);
+	'''
 	__metaclass__ = ModelMetaclass
 
 	def __init__(self, **kw):
@@ -223,6 +281,12 @@ class Model(dict):
 		select count(pk) from table where ...
 		'''
 		return db.select_int('select count(`%s`) from `%s` %s' % (cls.__primary_key__.name, cls.__table__, where), *args)
+
+	def save(self):
+		logging.info('create tables SQL : %s' % self.__sql__())
+		print self.__sql__()
+		db.update(self.__sql__())
+
 
 	def update(self):
 		self.pre_update and self.pre_update() # pre_update and pre_update() are trigger
