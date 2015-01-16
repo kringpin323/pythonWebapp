@@ -418,6 +418,161 @@ def _unquote(s, encoding = 'utf-8'):
 	'''
 	return urllib.unquote(s).decode(encoding)
 
+def get(path):
+	'''
+	A @get decorator.
+
+	@get('/:id')
+	def index(id):
+		pass
+
+	>>> @get('/test:id')
+	... def test():
+	... 	return 'ok'
+	...
+	>>> test.__web_route__
+	'/test/:id'
+	>>> test.__web_method__
+	'GET'
+	>>> test()
+	'ok'
+	'''
+	def _decorator(func):
+		func.__web_route__ = path
+		func.__web_method__ = 'GET'
+		return func
+	return _decorator
+
+def post(path):
+	'''
+	A @post decorator.
+
+	>>> @post('/post/:id')
+	... def testpost():
+	... 	return '200'
+	...
+	>>> testpost.__web_route__
+	'/post/:id'
+	>>> testpost.__web_method__
+	'POST'
+	>>> testpost()
+	'200
+	'''
+	def _decorator(func):
+		func.__web_route__ = path
+		func.__web_method__ = 'POST'
+		return func
+	return _decorator
+
+_re_route = re.compile(r'(\:[a-zA-Z_]\w*)')  # such as /test/:id , ':id'
+
+def _build_regex(path):
+	r'''
+	Convert route path to regex.
+
+	>>> _build_regex('/path/to/:file')
+	'^\\/path\\/to\\/(?P<file>[^\\/]+)$'
+	>>> _build_regex('/:user/:comments/list')
+    '^\\/(?P<user>[^\\/]+)\\/(?P<comments>[^\\/]+)\\/list$'
+    >>> _build_regex(':id-:pid/:w')
+    '^(?P<id>[^\\/]+)\\-(?P<pid>[^\\/]+)\\/(?P<w>[^\\/]+)$'
+	'''
+	re_list = ['^']
+	var_list = []
+	is_var = False
+	for v in _re_route.split(path):  # (1)/ (2):user (3)/ (4):comments (5)/list
+		if is_var:
+			var_name = v[1:]
+			var_list.append(var_name)  # var_list = [user,comments]
+			re_list.append(r'(?P<%s>[^\/]+)' % var_name)
+		else:
+			s = ''
+			for ch in v:
+				if ch>='0' and ch<='9':
+					s = s+ch
+				elif ch>='A' and ch<='Z':
+					s = s + ch
+				elif ch>='a' and ch<='z':
+					s = s + ch
+				else:
+					s = s + '\\' + ch
+			re_list.append(s)
+		is_var = not is_var
+	re_list.append('$')
+	return ''.join(re_list)
+
+class Route(object):
+	'''
+	A Route object is a callable object.
+	'''
+
+	def __init__(self, func):
+		self.path = func.__web_route__
+		self.method = func.__web_method__
+		self.is_static = _re_route.search(self.path) is None # can not find , not Pattern :id static
+		if not self.is_static:
+			self.route = re.compile(_build_regex(self.path)) # not static self route
+		self.func = func
+
+	def match(self, url):
+		m = self.route.match(url)
+		if m:
+			return m.groups()
+		return None
+
+	def __call__(self, *args):
+		return self.func(*args)
+
+	def __str__(self):
+		if self.is_static:
+			return 'Route(static, %s, path=%s)' % (self.method, self.path)
+		return 'Route(dynamic, %s, path=%s)' % (self.method, self.path)
+
+	__repr__ = __str__
+
+def __static_file_generator(fpath):
+	BLOCK_SIZE = 8192 # why that numbers ?
+	with open(fpath, 'rb') as f:
+		block = f.read(BLOCK_SIZE)
+		while block:
+			yield block
+			block = f.read(BLOCK_SIZE)
+
+class StaticFileRoute(object):   # still don't get it
+
+	def __init__(object):
+		self.method = 'GET'
+		self.is_static = False
+		self.route = re.compile('^/static/(.+)$')
+
+	def match(self, url):
+		if url.startswith('/static/'):
+			return (url[1:],)
+		return None
+
+	def __call__(self, *args):
+		fpath = os.path.join(ctx.application.document_root, args[0])
+		if not os.path.isfile(fpath):
+			raise notfound()
+		fext = os.path.splitext(fpath)[1]
+		ctx.response.content_type = mimetypes.types_map.get(fext.lower(),'application/octet-stream')
+		return _static_file_generator(fpath)
+
+def favicon_handler():
+	return static_file_handler('/favicon.ico')
+
+class MultipartFile(object):  # as an return type for ctx.request['file']
+	'''
+	Multipart file storage get from request input.
+
+	f = ctx.request['file']
+	f.filename # 'test.png
+	f.file # file-like object
+	'''
+	def __init__(self, storage):
+		self.filename = _to_unicode(storage.filename)
+		self.file = storage.file
+
 if __name__=='__main__':
 	sys.path.append('.')
 	import doctest
