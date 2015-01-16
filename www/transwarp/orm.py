@@ -7,7 +7,7 @@ __author__ = 'David Lin'
 Database operation module. This module is independent with web module.
 '''
 
-import time, logging
+import logging
 
 import db # import the file we write named db
 
@@ -105,7 +105,7 @@ def _gen_sql(table_name, mappings):
 	sql = ['-- generating SQL for %s:' % table_name, 'create table `%s` (' % table_name]
 	for f in sorted(mappings.values(), lambda x, y: cmp(x._order, y._order)):
 		if not hasattr(f, 'ddl'):
-			raise StandardError('no ddl in field "%s".' % n)
+			raise StandardError('no ddl in field "%s".' % f)
 		ddl = f.ddl
 		nullable = f.nullable
 		if f.primary_key:
@@ -282,9 +282,9 @@ class Model(dict):
 		'''
 		return db.select_int('select count(`%s`) from `%s` %s' % (cls.__primary_key__.name, cls.__table__, where), *args)
 
-	def save(self):
+	def save(self):   # do the job in first time
 		logging.info('create tables SQL : %s' % self.__sql__())
-		print self.__sql__()
+		# print self.__sql__()
 		db.update(self.__sql__())
 
 

@@ -5,7 +5,7 @@ __author__ = 'David Lin'
 
 import logging
 
-from models import User, Blog, Comment
+from models import User
 
 from transwarp import db
 
