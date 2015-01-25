@@ -548,7 +548,7 @@ def __static_file_generator(fpath): # get the static file
 
 class StaticFileRoute(object):   # still don't get it
 
-	def __init__(object):
+	def __init__(self):
 		self.method = 'GET'
 		self.is_static = False
 		self.route = re.compile('^/static/(.+)$')
@@ -1191,7 +1191,7 @@ class WSGIApplication(object):
 			document_root: document root path.
 		'''
 		self._running = False # runing default False
-		self._document_root = ducument_root # self._document_root replace the args put in
+		self._document_root = document_root # self._document_root replace the args put in
 
 		self._interceptors = []
 		self._template_engine = None # jinja2 Engine
@@ -1247,7 +1247,7 @@ class WSGIApplication(object):
 	def run(self, port=9000, host='127.0.0.1'): # that mean the host IP and Port
 		from wsgiref.simple_server import make_server
 		logging.info('application (%s) will start at %s:%s...' % (self._document_root, host,port))
-		server = make_server(host, port , self.get_wsgi_application(_debug=True))
+		server = make_server(host, port, self.get_wsgi_application(debug=True))
 		server.serve_forever() # not stop
 
 	def get_wsgi_application(self, debug=False):
@@ -1259,7 +1259,7 @@ class WSGIApplication(object):
 		_application = Dict(document_root=self._document_root) # application handler the self document root
 
 		def fn_route():
-			retquest_emthod = ctx.request.request_method
+			request_method = ctx.request.request_method
 			path_info = ctx.request.path_info
 			if request_method=='GET':
 				fn = self._get_static.get(path_info, None)
@@ -1290,7 +1290,7 @@ class WSGIApplication(object):
 			try:
 				r = fn_exec()
 				if isinstance(r, Template):
-					r = self._template_engine(r.template_engine, r.model) # get tempalte and model
+					r = self._template_engine(r.template_name, r.model) # get tempalte and model
 				if isinstance(r, unicode):
 					r = r.encode('utf-8')
 				if r is None:
