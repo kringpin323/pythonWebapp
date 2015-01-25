@@ -74,9 +74,15 @@ class UTC(datetime.tzinfo):
 	'''
 	A UTC tzinfo object.
 
-	>>> tz0 = UTC('+00:00)
+	>>> tz0 = UTC('+00:00')
 	>>> tz0.tzname(None)
-	'UCT+00:00'
+	'UTC+00:00'
+	>>> tz8 = UTC('+8:00')
+    >>> tz8.tzname(None)
+    'UTC+8:00'
+    >>> tz7 = UTC('+7:30')
+    >>> tz7.tzname(None)
+    'UTC+7:30'
 	>>> tz5 = UTC('-05:30')
 	>>> tz5.tzname(None)
 	'UTC-05:30'
@@ -227,8 +233,10 @@ _RESPONSE_HEADERS = (
 	'X-UA-Compatible',
 )
 
-_RESPONSE_HEADER_DICT = dict()  # waiting to finish
+# build and dict connect that : X-UA-COMPATIBLE -->  X-UA-Compatible 
+_RESPONSE_HEADER_DICT = dict(zip(map(lambda x: x.upper(), _RESPONSE_HEADERS),_RESPONSE_HEADERS))  # waiting to finish
 
+# my web framework name
 _HEADER_X_POWERED_BY = ('X-Powered-By','David_Lin-Michael/1.0')
 
 class HttpError(Exception):
@@ -378,8 +386,8 @@ def seeother(location):
 
 	>>> raise seeother('http://www.itranswarp.com/')
 	Traceback (most recent call last):
-	  ...
-	RedirectError: 303 See Other, http://www.itranswarp.com/
+		...
+	RedirectError: 303 See other, http://www.itranswarp.com/
 	>>> e = seeother('http://www.itranswarp.com/seeother?r=123')
 	>>> e.location
 	'http://www.itranswarp.com/seeother?r=123'
@@ -431,7 +439,7 @@ def get(path):
 	... 	return 'ok'
 	...
 	>>> test.__web_route__
-	'/test/:id'
+	'/test:id'
 	>>> test.__web_method__
 	'GET'
 	>>> test()
@@ -443,7 +451,7 @@ def get(path):
 		return func
 	return _decorator
 
-def post(path):
+def post(path): # analyse the path
 	'''
 	A @post decorator.
 
@@ -456,7 +464,7 @@ def post(path):
 	>>> testpost.__web_method__
 	'POST'
 	>>> testpost()
-	'200
+	'200'
 	'''
 	def _decorator(func):
 		func.__web_route__ = path
@@ -466,16 +474,16 @@ def post(path):
 
 _re_route = re.compile(r'(\:[a-zA-Z_]\w*)')  # such as /test/:id , ':id'
 
-def _build_regex(path):
+def _build_regex(path): # that is an important part can not understand
 	r'''
 	Convert route path to regex.
 
 	>>> _build_regex('/path/to/:file')
 	'^\\/path\\/to\\/(?P<file>[^\\/]+)$'
 	>>> _build_regex('/:user/:comments/list')
-    '^\\/(?P<user>[^\\/]+)\\/(?P<comments>[^\\/]+)\\/list$'
-    >>> _build_regex(':id-:pid/:w')
-    '^(?P<id>[^\\/]+)\\-(?P<pid>[^\\/]+)\\/(?P<w>[^\\/]+)$'
+	'^\\/(?P<user>[^\\/]+)\\/(?P<comments>[^\\/]+)\\/list$'
+	>>> _build_regex(':id-:pid/:w')
+	'^(?P<id>[^\\/]+)\\-(?P<pid>[^\\/]+)\\/(?P<w>[^\\/]+)$'
 	'''
 	re_list = ['^']
 	var_list = []
@@ -510,12 +518,12 @@ class Route(object):
 		self.path = func.__web_route__
 		self.method = func.__web_method__
 		self.is_static = _re_route.search(self.path) is None # can not find , not Pattern :id static
-		if not self.is_static:
+		if not self.is_static: # find the file
 			self.route = re.compile(_build_regex(self.path)) # not static self route
 		self.func = func
 
 	def match(self, url):
-		m = self.route.match(url)
+		m = self.route.match(url) # point is , have self.route , that was really complicated
 		if m:
 			return m.groups()
 		return None
@@ -530,8 +538,8 @@ class Route(object):
 
 	__repr__ = __str__
 
-def __static_file_generator(fpath):
-	BLOCK_SIZE = 8192 # why that numbers ?
+def __static_file_generator(fpath): # get the static file
+	BLOCK_SIZE = 8192 # why that numbers ? 
 	with open(fpath, 'rb') as f:
 		block = f.read(BLOCK_SIZE)
 		while block:
@@ -551,12 +559,14 @@ class StaticFileRoute(object):   # still don't get it
 		return None
 
 	def __call__(self, *args):
-		fpath = os.path.join(ctx.application.document_root, args[0])
-		if not os.path.isfile(fpath):
+		# application is a dict contains document_root
+		fpath = os.path.join(ctx.application.document_root, args[0]) # get the document_root path and join with args
+		if not os.path.isfile(fpath): # not file
 			raise notfound()
-		fext = os.path.splitext(fpath)[1]
+		fext = os.path.splitext(fpath)[1] # get the args[0]
+		# don't get it 
 		ctx.response.content_type = mimetypes.types_map.get(fext.lower(),'application/octet-stream')
-		return _static_file_generator(fpath)
+		return _static_file_generator(fpath) # generate an static file base on fpath
 
 def favicon_handler():
 	return static_file_handler('/favicon.ico')
@@ -591,7 +601,7 @@ class Request(object):
 		fs = cgi.FieldStorage(fp = self._environ['wsgi.input'], environ=self._environ,keep_blank_values = True)
 		inputs = dict()
 		for key in fs:
-			inputs[key] = convert(fs[key])
+			inputs[key] = _convert(fs[key])
 		return inputs
 
 	def _get_raw_input(self):
@@ -657,85 +667,85 @@ class Request(object):
 	@property
 	def query_string(self):
 		'''
-        Get raw query string as str. Return '' if no query string.
+		Get raw query string as str. Return '' if no query string.
 
-        >>> r = Request({'QUERY_STRING': 'a=1&c=2'})
-        >>> r.query_string
-        'a=1&c=2'
-        >>> r = Request({})
-        >>> r.query_string
-        ''
-        '''
-        return self._environ.get('QUERY_STRING','')
+		>>> r = Request({'QUERY_STRING': 'a=1&c=2'})
+		>>> r.query_string
+		'a=1&c=2'
+		>>> r = Request({})
+		>>> r.query_string
+		''
+		'''
+		return self._environ.get('QUERY_STRING','')
 
-    @property
-    def environ(self):
-    	return self._environ
+	@property
+	def environ(self):
+		return self._environ
 
-    @property
-    def request_method(self):
-    	return self._environ['REQUEST_METHOD']
+	@property
+	def request_method(self):
+		return self._environ['REQUEST_METHOD']
 
-    @property
-    def path_info(self):
-    	return urllib.unquote(self._environ.get('PATH_INFO',''))
+	@property
+	def path_info(self):
+		return urllib.unquote(self._environ.get('PATH_INFO',''))
 
-    @property
-    def host(self):
-    	'''
-    	Get request host as str. Default to '' if cannot get host..
+	@property
+	def host(self):
+		'''
+		Get request host as str. Default to '' if cannot get host..
 
-    	>>> r = Request({'HTTP_HOST': 'localhost:8080'})
-    	>>> r.host
-    	'localhost:8080'
-    	'''
-    	return self._environ.get('HTTP_HOST','')
+		>>> r = Request({'HTTP_HOST': 'localhost:8080'})
+		>>> r.host
+		'localhost:8080'
+		'''
+		return self._environ.get('HTTP_HOST','')
 
-    def _get_headers(self):
-    	if not hasattr(self, '_headers'):
-    		hdrs = {}
-    		for k,v in self._environ.iteritems():
-    			if k.startswith('HTTP_'):
-    				hdrs[k[5:].replace('_', '-').upper()] = v.decode('utf-8')
-    		self._headers = hdrs
-    	return self._headers
+	def _get_headers(self):
+		if not hasattr(self, '_headers'):
+			hdrs = {}
+			for k,v in self._environ.iteritems():
+				if k.startswith('HTTP_'):
+					hdrs[k[5:].replace('_', '-').upper()] = v.decode('utf-8')
+			self._headers = hdrs
+		return self._headers
 
-   	@property
-   	def headers(self):
-   		'''
-        Get all HTTP headers with key as str and value as unicode. The header names are 'XXX-XXX' uppercase.
+	@property
+	def headers(self):
+		'''
+		Get all HTTP headers with key as str and value as unicode. The header names are 'XXX-XXX' uppercase.
 
-        >>> r = Request({'HTTP_USER_AGENT': 'Mozilla/5.0', 'HTTP_ACCEPT': 'text/html'})
-        >>> H = r.headers
-        >>> H['ACCEPT']
-        u'text/html'
-        >>> H['USER-AGENT']
-        u'Mozilla/5.0'
-        >>> L = H.items()
-        >>> L.sort()
-        >>> L
-        [('ACCEPT', u'text/html'), ('USER-AGENT', u'Mozilla/5.0')]
-        '''
-        return dict(**self._get_headers())
+		>>> r = Request({'HTTP_USER_AGENT': 'Mozilla/5.0', 'HTTP_ACCEPT': 'text/html'})
+		>>> H = r.headers
+		>>> H['ACCEPT']
+		u'text/html'
+		>>> H['USER-AGENT']
+		u'Mozilla/5.0'
+		>>> L = H.items()
+		>>> L.sort()
+		>>> L
+		[('ACCEPT', u'text/html'), ('USER-AGENT', u'Mozilla/5.0')]
+		'''
+		return dict(**self._get_headers())
 
-    def header(self, header, default=None):
-    	return self._get_headers().get(header.upper(), default)
+	def header(self, header, default=None):
+		return self._get_headers().get(header.upper(), default)
 
-    def _get_cookies(self):
-    	if not hasattr(self, '_cookies'):
-    		cookies = {}
-    		cookie_str = self._environ.get('HTTP_COOKIE')
-    		if cookie_str:
-    			for c in cookie_str.split(';'):
-    				pos = c.find('=')
-    				if pos>0:
-    					cookies[c[:pos].strip()] = _unquote(c[pos+1:])
-    		self._cookies = cookies
-    	return self._cookies
+	def _get_cookies(self):
+		if not hasattr(self, '_cookies'):
+			cookies = {}
+			cookie_str = self._environ.get('HTTP_COOKIE')
+			if cookie_str:
+				for c in cookie_str.split(';'):
+					pos = c.find('=')
+					if pos>0:
+						cookies[c[:pos].strip()] = _unquote(c[pos+1:])
+			self._cookies = cookies
+		return self._cookies
 
-    @property
-    def cookies(self):
-    	return self._get_cookies().get(name, default)
+	@property
+	def cookies(self):
+		return self._get_cookies().get(name, default)
 
 UTC_0 = UTC('+00:00')
 
@@ -751,12 +761,12 @@ class Response(object):
 		Return response headers as [(key1, value1),(key2, value2)...] including cookies.
 
 		>>> r = Response()
-        >>> r.headers
-        [('Content-Type', 'text/html; charset=utf-8'), ('X-Powered-By', 'transwarp/1.0')]
-        >>> r.set_cookie('s1', 'ok', 3600)
-        >>> r.headers
-        [('Content-Type', 'text/html; charset=utf-8'), ('Set-Cookie', 's1=ok; Max-Age=3600; Path=/; HttpOnly'), ('X-Powered-By', 'transwarp/1.0')]
-        '''
+		>>> r.headers
+		[('Content-Type', 'text/html; charset=utf-8'), ('X-Powered-By', 'David_Lin-Michael/1.0')]
+		>>> r.set_cookie('s1', 'ok', 3600)
+		>>> r.headers
+		[('Content-Type', 'text/html; charset=utf-8'), ('Set-Cookie', 's1=ok; Max-Age=3600; Path=/; HttpOnly'), ('X-Powered-By', 'David_Lin-Michael/1.0')]
+		'''
 		L = [(_RESPONSE_HEADER_DICT.get(k, k), v) for k, v in self._headers.iteritems()]
 		if hasattr(self, '_cookies'):
 			for v in self._cookies.itervalues():
@@ -773,7 +783,7 @@ class Response(object):
 		'text/html; charset=utf-8'
 		>>> r.header('CONTENT-type')
 		'text/html; charset=utf-8'
-		>>> r.header('X-Powered-By)
+		>>> r.header('X-Powered-By')
 		'''
 		key = name.upper()
 		if not key in _RESPONSE_HEADER_DICT:
@@ -784,11 +794,11 @@ class Response(object):
 		'''
 		Unset header by name and value.
 
-        >>> r = Response()
-        >>> r.header('content-type')
-        'text/html; charset=utf-8'
-        >>> r.unset_header('CONTENT-type')
-        >>> r.header('content-type')
+		>>> r = Response()
+		>>> r.header('content-type')
+		'text/html; charset=utf-8'
+		>>> r.unset_header('CONTENT-type')
+		>>> r.header('content-type')
 		'''
 		key = name.upper()
 		if not key in _RESPONSE_HEADER_DICT:
@@ -818,11 +828,11 @@ class Response(object):
 		'''
 		Get content length. Return None if not set.
 
-        >>> r = Response()
-        >>> r.content_length
-        >>> r.content_length = 100
-        >>> r.content_length
-        '100'
+		>>> r = Response()
+		>>> r.content_length
+		>>> r.content_length = 100
+		>>> r.content_length
+		'100'
 		'''
 		return self.header('CONTENT-LENGTH')
 
@@ -831,13 +841,13 @@ class Response(object):
 		'''
 		Set content length, the value can be int or str.
 
-        >>> r = Response()
-        >>> r.content_length = '1024'
-        >>> r.content_length
-        '1024'
-        >>> r.content_length = 1024 * 8
-        >>> r.content_length
-        '8192'
+		>>> r = Response()
+		>>> r.content_length = '1024'
+		>>> r.content_length
+		'1024'
+		>>> r.content_length = 1024 * 8
+		>>> r.content_length
+		'8192'
 		'''
 		self.set_header('CONTENT-LENGTH', str(value))
 
@@ -876,8 +886,8 @@ class Response(object):
 		>>> dt = datetime.datetime(2012, 7, 14, 22, 6, 34, tzinfo=UTC('+8:00'))
 		>>> r.set_cookie('company', 'Expires', expires=dt)
 		>>> r._cookies
-		{'company': 'company=Example%3D%22Limited%22; Expires=Sat, 14-Jul-2012 14:06:34 GMT; Path=/sub/; HttpOnly'}
-		>>> dt = dateitme.datetime(2012, 7, 14, 22, 6, 34, tzinfo=UTC('+8:00'))
+		{'company': 'company=Expires; Expires=Sat, 14-Jul-2012 14:06:34 GMT; Path=/; HttpOnly'}
+		>>> dt = datetime.datetime(2012, 7, 14, 22, 6, 34, tzinfo=UTC('+8:00'))
 		>>> r.set_cookie('company', 'Expires', expires = dt)
 		>>> r._cookies
 		{'company': 'company=Expires; Expires=Sat, 14-Jul-2012 14:06:34 GMT; Path=/; HttpOnly'}
@@ -888,7 +898,7 @@ class Response(object):
 		if expires is not None:
 			if isinstance(expires , (float, int, long)):
 				L.append('Expires=%s' % datetime.datetime.fromtimestamp(expires, UTC_0).strftime('%a, %d-%b-%Y %H:%M:%S GMT'))
-			if isinstance(expires, (datetime.date, datetime.dateitme)):
+			if isinstance(expires, (datetime.date, datetime.datetime)):
 				L.append('Expires=%s' % expires.astimezone(UTC_0).strftime('%a, %d-%b-%Y %H:%M:%S GMT'))
 		elif isinstance(max_age, (int, long)):
 			L.append('Max-Age=%d' % max_age)
@@ -947,13 +957,13 @@ class Response(object):
 		  ...
 		 ValueError: Bad Response code: 99
 		>>> r.status = 'ok'
-        Traceback (most recent call last):
-          ...
-        ValueError: Bad response code: ok
-        >>> r.status = [1, 2, 3]
-        Traceback (most recent call last):
-          ...
-        TypeError: Bad type of response code.
+		Traceback (most recent call last):
+		  ...
+		ValueError: Bad response code: ok
+		>>> r.status = [1, 2, 3]
+		Traceback (most recent call last):
+		  ...
+		TypeError: Bad type of response code.
 		'''
 		if isinstance(value, (int, long)):
 			if value>=100 and value<=999:
@@ -976,7 +986,7 @@ class Response(object):
 
 class Template(object):
 
-	def __init__(self, template_name, **kw):
+	def __init__(self, template_name, **kw): # template_name is path
 		'''
 		Init a template object with template name, model as dict, and additional kw that will append to model.
 
@@ -989,25 +999,25 @@ class Template(object):
 		>>> t.model['abc']
 		u'ABC'
 		'''
-		self.template_name = template_name
-		self.model = dict(**kw)
+		self.template_name = template_name # a path 
+		self.model = dict(**kw) # build and model with a dict
 
-class TemplateEngine(object):
+class TemplateEngine(object): # a function to render your own template
 	'''
 	Base template engine.
 	'''
 	def __call__(self, path, model):
-		return '<!-- override this method to render template -->'
+		return '<!-- override this method to render template -->' # return a String "xuanrang"
 
-class Jinja2TemplateEngine(TemplateEngine):
+class Jinja2TemplateEngine(TemplateEngine): # that is we use , I will see it later
 	'''
 	Render using jinja2 template engine.
 
-    >>> templ_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'test')
-    >>> engine = Jinja2TemplateEngine(templ_path)
-    >>> engine.add_filter('datetime', lambda dt: dt.strftime('%Y-%m-%d %H:%M:%S'))
-    >>> engine('jinja2-test.html', dict(name='Michael', posted_at=datetime.datetime(2014, 6, 1, 10, 11, 12)))
-    '<p>Hello, Michael.</p><span>2014-06-01 10:11:12</span>'
+	>>> templ_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
+	>>> engine = Jinja2TemplateEngine(templ_path)
+	>>> engine.add_filter('datetime', lambda dt: dt.strftime('%Y-%m-%d %H:%M:%S'))
+	>>> engine('jinja2-David-test.html', dict(name='Michael', posted_at=datetime.datetime(2014, 6, 1, 10, 11, 12)))
+	'<p>Hello, Michael.</p><span>2014-06-01 10:11:12</span>'
 	'''
 
 	def __init__(self, templ_dir, **kw):
@@ -1022,7 +1032,7 @@ class Jinja2TemplateEngine(TemplateEngine):
 	def __call__(self, path , model):
 		return self._env.get_template(path).render(**model).encode('utf-8')
 
-def _default_error_handler(e, start_response, is_debug):
+def _default_error_handler(e, start_response, is_debug): # error handler not a important point
 	if isinstance(e, HttpError):
 		logging.info('HttpError: %s' % e.status)
 		headers = e.headers[:]
@@ -1056,7 +1066,7 @@ def view(path):
 	ValueError: Expect return a dict when using @view() decorator.
 	'''
 	def _decorator(func):
-		@functools.warps(func)
+		@functools.wraps(func)
 		def _wrapper(*args, **kw):
 			r = func(*args, **kw)
 			if isinstance(r, dict):
@@ -1066,16 +1076,16 @@ def view(path):
 		return _wrapper
 	return _decorator
 
-_RE_INTERCEPTROR_STARTS_WITH = re.compile(r'^([^\*\?]+)\*?$')
-_RE_INTERCEPTROR_ENDS_WITH = re.compile(r'^\*([^\*\?]+)$')
+_RE_INTERCEPTROR_STARTS_WITH = re.compile(r'^([^\*\?]+)\*?$') # no include * and ? not and * greedy
+_RE_INTERCEPTROR_ENDS_WITH = re.compile(r'^\*([^\*\?]+)$') # begin with * not include * and ?  
 
-def _bulid_pattern_fn(pattern):
+def _build_pattern_fn(pattern):  # think about '/admin/' build pattern fn 
 	m = _RE_INTERCEPTROR_STARTS_WITH.match(pattern)
 	if m:
 		return lambda p: p.startswith(m.group(1))
 	m = _RE_INTERCEPTROR_ENDS_WITH.match(pattern)
 	if m:
-		return lambda p: p.endswith(m.group(1))
+		return lambda p: p.endswith(m.group(1)) # return and function args is String and endswith group(1)
 	raise ValueError('Invalid pattern definition in interceptor.')
 
 def interceptor(pattern='/'):
@@ -1099,79 +1109,221 @@ def _build_interceptor_fn(func, next):
 			return next()
 	return _wrapper
 
-def _build_interceptor_chain(last_fn, *interceptors):
+def _build_interceptor_chain(last_fn, *interceptors): # build interceptor chain
 	'''
-    Build interceptor chain.
+	Build interceptor chain.
 
-    >>> def target():
-    ...     print 'target'
-    ...     return 123
-    >>> @interceptor('/')
-    ... def f1(next):
-    ...     print 'before f1()'
-    ...     return next()
-    >>> @interceptor('/test/')
-    ... def f2(next):
-    ...     print 'before f2()'
-    ...     try:
-    ...         return next()
-    ...     finally:
-    ...         print 'after f2()'
-    >>> @interceptor('/')
-    ... def f3(next):
-    ...     print 'before f3()'
-    ...     try:
-    ...         return next()
-    ...     finally:
-    ...         print 'after f3()'
-    >>> chain = _build_interceptor_chain(target, f1, f2, f3)
-    >>> ctx.request = Dict(path_info='/test/abc')
-    >>> chain()
-    before f1()
-    before f2()
-    before f3()
-    target
-    after f3()
-    after f2()
-    123
-    >>> ctx.request = Dict(path_info='/api/')
-    >>> chain()
-    before f1()
-    before f3()
-    target
-    after f3()
-    123
-    '''
-    L = list(interceptors)
-    L.reverse()
-    fn = last_fn
-    for f in L:
-    	fn = _bulid_interceptor_fn(f, fn)
-    return fn
-
-def _load_module(module_name):
+	>>> def target():
+	...     print 'target'
+	...     return 123
+	>>> @interceptor('/')
+	... def f1(next):
+	...     print 'before f1()'
+	...     return next()
+	>>> @interceptor('/test/')
+	... def f2(next):
+	...     print 'before f2()'
+	...     try:
+	...         return next()
+	...     finally:
+	...         print 'after f2()'
+	>>> @interceptor('/')
+	... def f3(next):
+	...     print 'before f3()'
+	...     try:
+	...         return next()
+	...     finally:
+	...         print 'after f3()'
+	>>> chain = _build_interceptor_chain(target, f1, f2, f3)
+	>>> ctx.request = Dict(path_info='/test/abc')
+	>>> chain()
+	before f1()
+	before f2()
+	before f3()
+	target
+	after f3()
+	after f2()
+	123
+	>>> ctx.request = Dict(path_info='/api/')
+	>>> chain()
+	before f1()
+	before f3()
+	target
+	after f3()
+	123
 	'''
-    Load module from name as str.
+	L = list(interceptors)
+	L.reverse()
+	fn = last_fn
+	for f in L:
+		fn = _build_interceptor_fn(f, fn)
+	return fn
 
-    >>> m = _load_module('xml')
-    >>> m.__name__
-    'xml'
-    >>> m = _load_module('xml.sax')
-    >>> m.__name__
-    'xml.sax'
-    >>> m = _load_module('xml.sax.handler')
-    >>> m.__name__
-    'xml.sax.handler'
-    '''
-    last_dot = module_name.rfind('.')
-    if last_dot==(-1):
-    	return __import__(module_name, globals(), locals())
-    from_module = module_name[:last_dot]
-    import_module = module_name[last_dot+1:]
-    m = __import__(from_module, globals(), locals(), [import_module])
-    return getattr(m, import_module)
+def _load_module(module_name): # module_name : String , load module dynamic
+	'''
+	Load module from name as str.
 
+	>>> m = _load_module('xml')
+	>>> m.__name__
+	'xml'
+	>>> m = _load_module('xml.sax')
+	>>> m.__name__
+	'xml.sax'
+	>>> m = _load_module('xml.sax.handler')
+	>>> m.__name__
+	'xml.sax.handler'
+	'''
+	last_dot = module_name.rfind('.') # rfind return the last time str appear, None -1 
+	if last_dot==(-1): # None
+		return __import__(module_name, globals(), locals()) # dynamic import module 'module_name'
+	from_module = module_name[:last_dot]
+	import_module = module_name[last_dot+1:]
+	m = __import__(from_module, globals(), locals(), [import_module])
+	return getattr(m, import_module) # m : module, 
 
+class WSGIApplication(object):
+
+	def __init__(self, document_root=None, **kw):
+		'''
+		Init a WSGIApplication
+
+		Args:
+			document_root: document root path.
+		'''
+		self._running = False # runing default False
+		self._document_root = ducument_root # self._document_root replace the args put in
+
+		self._interceptors = []
+		self._template_engine = None # jinja2 Engine
+
+		self._get_static = {} # static resource dict
+		self._post_static = {} # post static resource
+
+		self._get_dynamic = [] # get dynamic resource, list
+		self._post_dynamic = [] #
+
+	def _check_out_running(self):
+		if self._running:
+			raise RuntimeError('can not modify WSGIApplication  when running')
+
+	@property
+	def template_engine(self):
+		return self._template_engine
+
+	@template_engine.setter
+	def template_engine(self, engine):
+		self._check_out_running # not motify when running
+		self._template_engine = engine # set the engine , we saw it as jinja2
+
+	def add_module(self, mod): # what is mod?
+		self._check_out_running()
+		m = mod if type(mod)==types.ModuleType else _load_module(mod) # what does it mean ?
+		logging.info('Add module: %s' % m.__name__)
+		for name in dir(m):
+			fn = getattr(m, name)
+			if callable(fn) and hasattr(fn, '__web_route__') and hasattr(fn, '__web_route__'):
+				self.add_url(fn)
+
+	def add_url(self, func):
+		self._check_out_running()
+		route = Route(func)
+		if route.is_static:
+			if route.method=='GET':
+				self._get_static[route.path] = route
+			if route.method=='POST':
+				self._post_static[route.path] = route
+		else:
+			if route.method=='GET':
+				self._get_dynamic.append(route)
+			if route.method=='POST': # not static
+				self._post_dynamic.append(route)
+		logging.info('Add route: %s' % str(route))
+
+	def add_interceptor(self, func):
+		self._check_out_running()
+		self._interceptors.append(func)
+		logging.info('Add interceptor: %s ' % str(func))
+
+	def run(self, port=9000, host='127.0.0.1'): # that mean the host IP and Port
+		from wsgiref.simple_server import make_server
+		logging.info('application (%s) will start at %s:%s...' % (self._document_root, host,port))
+		server = make_server(host, port , self.get_wsgi_application(_debug=True))
+		server.serve_forever() # not stop
+
+	def get_wsgi_application(self, debug=False):
+		self._check_out_running()
+		if debug: # it is in debug side
+			self._get_dynamic.append(StaticFileRoute())
+		self._running = True
+
+		_application = Dict(document_root=self._document_root) # application handler the self document root
+
+		def fn_route():
+			retquest_emthod = ctx.request.request_method
+			path_info = ctx.request.path_info
+			if request_method=='GET':
+				fn = self._get_static.get(path_info, None)
+				if fn:
+					return fn()
+				for fn in self._get_dynamic:
+					args = fn.match(path_info)
+					if args:
+						return fn(*args)
+				raise notfound()
+			if request_method=='POST':
+				fn = self._pot_static.get(path_info, None)
+				if fn:
+					return fn()
+				for fn in self._post_dynamic:
+					args = fn.match(path_info)
+					if args:
+						return fn(*args)
+				raise notfound() # not see that function yee
+			raise badrequest()
+
+		fn_exec = _build_interceptor_chain(fn_route, *self._interceptors)
+
+		def wsgi(env, start_response):
+			ctx.application = _application
+			ctx.request = Request(env)
+			response = ctx.response = Response() # local response get the Response of it
+			try:
+				r = fn_exec()
+				if isinstance(r, Template):
+					r = self._template_engine(r.template_engine, r.model) # get tempalte and model
+				if isinstance(r, unicode):
+					r = r.encode('utf-8')
+				if r is None:
+					r = []
+				start_response(response.status, response.headers)
+				return r
+			except RedirectError, e:
+				response.set_header('Location', e.location)
+				start_response(e.status, response.headers)
+				return []
+			except HttpError, e:
+				start_response(e.status, response.headers)
+				return ['<html><body><h1>', e.status, '</h1></body></html>']
+			except Exception, e:
+				logging.exception(e)
+				if not debug:
+					start_response('500 Internal Server Error',[])
+					return ['<html><body><h1>500 Internal Server Error</h1></body></html>']
+				exc_type, exc_value, exc_traceback = sys.exc_info()
+				fp = StringIO()
+				traceback.print_exception(exc_type, exc_value, exc_traceback, file=fp)
+				stacks = fp.getvalue()
+				fp.close()
+				return [
+					r'''<html><body><h1>500 Internal Server Error</h1><div style="font-family:Monaco, Menlo, Consolas, 'Courier New', monospace;"><pre>''',
+					stacks.replace('<', '&lt;').replace('>', '&gt;'),
+					'</pre></div></body></html>']
+			finally:
+				del ctx.application
+				del ctx.request
+				del ctx.response
+
+		return wsgi
 
 if __name__=='__main__':
 	sys.path.append('.')
