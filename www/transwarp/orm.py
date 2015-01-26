@@ -272,6 +272,14 @@ class Model(dict):
 		return [cls(**d) for d in L]
 
 	@classmethod
+	def find_by(cls, where, *args):
+		'''
+		Find by where clause and return list.
+		'''
+		L = db.select('select * from `%s` %s' % (cls.__table__, where), *args)
+		return [cls(**d) for d in L]
+
+	@classmethod
 	def count_all(cls):
 		return db.select_int('select count(`%s`) from `%s`' % (cls.__primary_key__.name, cls.__table__))
 
