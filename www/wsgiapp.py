@@ -48,7 +48,7 @@ import urls_test
 wsgi.add_module(urls_test)
 
 if __name__ == '__main__':
-	wsgi.run(9004, host='0.0.0.0') # you can visit it outside
+	wsgi.run(9005, host='0.0.0.0') # you can visit it outside
 else:
 	application =wsgi.get_wsgi_application()
 

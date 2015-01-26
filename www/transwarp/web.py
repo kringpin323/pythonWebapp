@@ -538,7 +538,7 @@ class Route(object):
 
 	__repr__ = __str__
 
-def __static_file_generator(fpath): # get the static file
+def _static_file_generator(fpath): # get the static file
 	BLOCK_SIZE = 8192 # why that numbers ? 
 	with open(fpath, 'rb') as f:
 		block = f.read(BLOCK_SIZE)
@@ -1271,7 +1271,7 @@ class WSGIApplication(object):
 						return fn(*args)
 				raise notfound()
 			if request_method=='POST':
-				fn = self._pot_static.get(path_info, None)
+				fn = self._post_static.get(path_info, None)
 				if fn:
 					return fn()
 				for fn in self._post_dynamic:
