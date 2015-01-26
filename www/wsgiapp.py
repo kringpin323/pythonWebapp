@@ -45,6 +45,8 @@ wsgi.template_engine = template_engine
 
 import urls_test
 
+wsgi.add_interceptor(urls_test.user_interceptor)
+wsgi.add_interceptor(urls_test.manage_interceptor)
 wsgi.add_module(urls_test)
 
 if __name__ == '__main__':

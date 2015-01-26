@@ -745,6 +745,9 @@ class Request(object):
 
 	@property
 	def cookies(self):
+		return Dict(**self._get_cookies())
+		
+	def cookie(self, name, default=None):
 		return self._get_cookies().get(name, default)
 
 UTC_0 = UTC('+00:00')
